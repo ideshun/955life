@@ -1,7 +1,7 @@
 ---
 import Base from '../../layouts/Base.astro';
 import { locales, t, type Locale } from '../../i18n/ui';
-import { countdowns } from '../../data/countdowns';
+import { countdowns, EU_FLR } from '../../data/countdowns';
 
 export function getStaticPaths() {
   return locales.map((lang) => ({ params: { lang } }));
@@ -15,13 +15,13 @@ const startTs = (iso: string) => new Date(`${iso}T00:00:00+08:00`).getTime();
 
 const items = countdowns.map((c) => ({ ...c, startTs: startTs(c.start), endTs: endPlusOne(c.end) }));
 const now = Date.now();
-const upcoming = items.filter((i) => i.startTs > now);
-const next = upcoming[0] ?? null;
+const euAppliesTs = startTs(EU_FLR.applies);
+const euDays = Math.max(0, Math.ceil((euAppliesTs - now) / 86400000));
 
 const jsonLd = JSON.stringify([
   {
     '@context': 'https://schema.org',
-    '@type': 'CollectionPage',
+    '@type': 'WebPage',
     name: t(lang, 'cd_t'),
     description: t(lang, 'cd_d'),
     inLanguage: lang,
@@ -45,24 +45,22 @@ const jsonLd = JSON.stringify([
       <p class="mt-2 text-sm" style="color: var(--ink-soft);">{p('cd_d')}</p>
     </div>
 
-    {next && (
-      <div class="reveal mb-12 rounded-3xl border p-8 md:p-12 text-center" style="border-color: var(--line); background: var(--paper-raise);">
-        <p class="text-xs uppercase tracking-[0.2em] mb-4" style="color: var(--ink-soft);">{p('cd_title_next')}</p>
-        <h2 class="font-display text-2xl md:text-4xl font-black mb-6" data-cd-name>{p(next.key)}</h2>
-        <div class="flex items-end justify-center gap-3" data-cd-hero data-start={next.startTs} data-end={next.endTs}>
-          <span class="font-display text-7xl md:text-8xl font-black text-gradient tabular-nums" data-cd-num>{Math.max(0, Math.ceil((next.startTs - now) / 86400000))}</span>
-          <span class="text-xl md:text-2xl font-bold mb-2" data-cd-unit>{p('cd_days')}</span>
-        </div>
-        <p class="mt-4 text-sm" style="color: var(--ink-soft);" data-cd-range>
-          {next.start === next.end ? next.start : `${next.start} ~ ${next.end}`}
-        </p>
+    <!-- 主卡：EU 禁强迫劳动条例正式适用倒计时 -->
+    <div class="reveal mb-12 rounded-3xl border p-8 md:p-12 text-center" style="border-color: var(--line); background: var(--paper-raise);" data-cd-hero data-start={euAppliesTs}>
+      <p class="text-xs uppercase tracking-[0.2em] mb-4" style="color: var(--ink-soft);">{p('cd_eu_label')}</p>
+      <p class="font-display text-xl md:text-2xl font-bold mb-8" style="color: var(--ink);">{p('cd_eu_applies')}</p>
+      <div class="flex items-end justify-center gap-3">
+        <span class="font-display text-7xl md:text-8xl font-black text-gradient tabular-nums" data-cd-num>{euDays}</span>
+        <span class="text-xl md:text-2xl font-bold mb-2" data-cd-unit>{p('cd_days')}</span>
       </div>
-    )}
+      <p class="mt-6 text-sm tabular-nums" style="color: var(--ink-soft);">2027-12-14</p>
+    </div>
 
-    <div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 reveal" data-cd-list>
+    <div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 reveal">
+      <h2 class="font-display font-bold text-xl sm:col-span-2 lg:col-span-3 mb-1">{p('cd_eu_holidays_title')}</h2>
       {items.map((i) => (
         <div
-          class="rounded-2xl border p-5 flex flex-col gap-2"
+          class="rounded-2xl border p-5 flex flex-col gap-2 transition-opacity"
           style="border-color: var(--line); background: var(--paper-raise);"
           data-cd-item
           data-start={i.startTs}
@@ -84,8 +82,6 @@ const jsonLd = JSON.stringify([
 
     <p class="mt-8 text-xs leading-relaxed reveal" style="color: var(--ink-soft);">
       {p('cd_note')}
-      <br />
-      {p('cd_static_note')}
     </p>
 
     <aside class="mt-10 rounded-2xl border p-6 reveal" style="border-color: var(--line); background: var(--paper-raise);">
@@ -97,45 +93,36 @@ const jsonLd = JSON.stringify([
 <script is:inline>
   (function () {
     var locale = document.documentElement.lang || 'zh-CN';
-    // 与 i18n/ui.ts 的 cd_* 词条保持一致的本地化状态文案
     var labels = {
-      'zh-CN': { days: '天', today: '就是今天', started: '假期进行中', ended: '已结束', suffix: '天后' },
-      'zh-Hant': { days: '天', today: '就是今天', started: '假期進行中', ended: '已結束', suffix: '天後' },
-      en: { days: 'days', today: 'Today!', started: 'In progress', ended: 'Over', suffix: 'days left' },
-      ja: { days: '日', today: '今日！', started: '進行中', ended: '終了', suffix: '日後' },
-      ko: { days: '일', today: '오늘!', started: '진행 중', ended: '종료', suffix: '일 후' },
-      de: { days: 'Tage', today: 'Heute!', started: 'Laufend', ended: 'Vorbei', suffix: 'Tage' },
-      es: { days: 'días', today: '¡Hoy!', started: 'En curso', ended: 'Terminado', suffix: 'días' },
-      fr: { days: 'jours', today: 'Aujourd\u2019hui !', started: 'En cours', ended: 'Terminé', suffix: 'jours' },
+      'zh-CN': { days: '天', suffix: '天后' },
+      'zh-Hant': { days: '天', suffix: '天後' },
+      en: { days: 'days', suffix: 'days left' },
+      ja: { days: '日', suffix: '日後' },
+      ko: { days: '일', suffix: '일 후' },
+      de: { days: 'Tage', suffix: 'Tage' },
+      es: { days: 'días', suffix: 'días' },
+      fr: { days: 'jours', suffix: 'jours' },
     };
     var L = labels[locale] || labels['zh-CN'];
     var DAY = 86400000;
     function daysUntil(ts) { return Math.ceil((ts - Date.now()) / DAY); }
 
-    // hero 卡：未开始→剩余天数；进行中→started；结束后→隐藏整个 hero
+    // hero 卡：EU 条例适用日倒计时
     var hero = document.querySelector('[data-cd-hero]');
     if (hero) {
-      var s = +hero.dataset.start, e = +hero.dataset.end;
-      var nameEl = hero.closest('div.mb-12');
-      if (Date.now() >= e) {
-        if (nameEl) nameEl.style.display = 'none';
-      } else {
-        var num = hero.querySelector('[data-cd-num]');
-        var unit = hero.querySelector('[data-cd-unit]');
-        var d = daysUntil(s);
-        if (d <= 0) { num.textContent = ''; unit.textContent = d === 0 || Date.now() >= s ? L.started : L.ended; }
-        else { num.textContent = d; unit.textContent = L.suffix; }
-      }
+      var s = +hero.dataset.start;
+      var d = daysUntil(s);
+      if (d > 0) hero.querySelector('[data-cd-num]').textContent = d;
     }
 
-    // 列表卡：随时间变化更新状态（过去灰显、进行中高亮、未来显示天数）
+    // 假期卡：过去灰显、进行中标注、未来更新天数
     document.querySelectorAll('[data-cd-item]').forEach(function (el) {
       var s = +el.dataset.start, e = +el.dataset.end;
       var num = el.querySelector('[data-cd-item-num]');
       var unit = el.querySelector('[data-cd-item-unit]');
       var now = Date.now();
-      if (now >= e) { el.style.opacity = '0.45'; num.textContent = ''; unit.textContent = L.ended; }
-      else if (now >= s) { el.style.opacity = '0.75'; num.textContent = ''; unit.textContent = L.started; }
+      if (now >= e) { el.style.opacity = '0.45'; num.textContent = '—'; unit.textContent = ''; }
+      else if (now >= s) { el.style.opacity = '0.75'; num.textContent = '—'; unit.textContent = ''; }
       else { num.textContent = daysUntil(s); unit.textContent = L.suffix; }
     });
   })();
